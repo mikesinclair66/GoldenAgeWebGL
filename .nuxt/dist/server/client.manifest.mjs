@@ -1,0 +1,1 @@
+export { default } from "file:///C:/Users/micha/Documents/Programming%20and%20Business/Builds/Websites/Games/GoldenAgeWebGL/frontend/node_modules/@nuxt/vite-builder/dist/runtime/client.manifest.mjs"
