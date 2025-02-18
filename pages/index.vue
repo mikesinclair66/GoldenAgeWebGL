@@ -23,13 +23,9 @@
             const height = window.innerHeight;
             const devicePixelRatio = window.devicePixelRatio || 1;
 
-            //drawing dimensions
+            //match gl drawing dimensions with canvas size
             canvas.width = width * devicePixelRatio;
             canvas.height = height * devicePixelRatio;
-            
-            //display size
-            canvas.style.width = `${width}px`;
-            canvas.style.height = `${height}px`;
 
             const gl = canvas.getContext("webgl");
             if(!gl){
