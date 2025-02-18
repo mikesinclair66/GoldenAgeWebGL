@@ -4,7 +4,12 @@
 
 <script>
     import '@/assets/css/main.scss';
+    import basic_vertex from '@/assets/glsl/basic_vertex.glsl';
+    import basic_fragment from '@/assets/glsl/basic_fragment.glsl';
+
     import { mat4 } from 'gl-matrix';
+    import { compileShaderProgram, detectShaderProgramError } from '@/assets/scripts/compile_shader_program.js';
+    import prepareRender from '@/assets/scripts/prepare_render.js';
 
     export default {
         mounted(){
@@ -32,128 +37,72 @@
                 return;
             }
 
-            function compileShader(gl, shaderType, shaderKeyword, shaderSrc){
-                const shader = gl.createShader(shaderType);
-                if(!shader){
-                    console.log(`An error occurred creating the ${shaderKeyword} shader.`);
-                    return null;
-                }
+            //compile basic shader
+            const basicShaderProgram = compileShaderProgram(gl, basic_vertex, basic_fragment);
+            detectShaderProgramError(gl, basicShaderProgram);
+            gl.useProgram(basicShaderProgram);
 
-                gl.shaderSource(shader, shaderSrc);
-                gl.compileShader(shader);
-
-                if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
-                    console.log(`An error occured while compiling the ${shaderKeyword}:\n${gl.getShaderInfoLog(shader)}`);
-                    gl.deleteShader(shader);
-                    return null;
-                }
-
-                return shader;
-            }
-
-            //vertex shader
-            const vertexShader = compileShader(gl, gl.VERTEX_SHADER, "vertex", `
-                attribute vec4 aVertexPosition;
-                uniform mat4 uModelViewMatrix;
-                uniform mat4 uProjectionMatrix;
-                void main() {
-                    gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-                }
-            `);
-
-            //fragment shader
-            const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, "fragment", `
-                void main() {
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); // White
-                }
-            `);
-
-            //create shader program
-            const shaderProgram = gl.createProgram();
-            gl.attachShader(shaderProgram, vertexShader);
-            gl.attachShader(shaderProgram, fragmentShader);
-            gl.linkProgram(shaderProgram);
-
-            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-                alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
-                return null;
-            }
-
-            const programInfo = {
-                program: shaderProgram,
-                attribLocations: {
-                    vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
-                },
-                uniformLocations: {
-                    projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
-                    modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
-                },
-            };
-
-            //initliaze buffer
-            const positionBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            //initialize VBO
+            const VBO = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, VBO);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                 -0.5, -0.5, 0.0,
                 0.5, -0.5, 0.0,
                 0.0,  0.5, 0.0
             ]), gl.STATIC_DRAW);
 
-            const buffer = {
-                position: positionBuffer
-            };
+            //Clears the scene background, generally happens per frame
+            prepareRender(gl);
 
-            // Draw the scene
-            gl.clearColor(0.0, 0.0, 0.0, 1.0);
-            gl.clearDepth(1.0);
-            gl.enable(gl.DEPTH_TEST);
-            gl.depthFunc(gl.LEQUAL);
+            //In OpenGL ES (The graphics API WebGL is based off), we need to initialize variables that
+            //act as a link from here to the variables in the shader source code. That way, we can
+            //assign the values of our variables here to the variables in the shader program.
+            const VBOProgramLocation = gl.getAttribLocation(basicShaderProgram, 'a_vertexPosition');
+            const shaderProjectionLocation = gl.getUniformLocation(basicShaderProgram, 'u_projectionMatrix');
+            const shaderModelViewMatrixLocation = gl.getUniformLocation(basicShaderProgram, 'u_modelViewMatrix');
 
-            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enableVertexAttribArray(VBOProgramLocation);
+            {
+                const EDGES = 3, TYPE = gl.FLOAT, NORMALIZE = false, STRIDE = 0, OFFSET = 0;
+                gl.bindBuffer(gl.ARRAY_BUFFER, VBO);
+                gl.vertexAttribPointer(
+                    VBOProgramLocation, //variable that stores the shader attribute variable a_vertexPosition
+                    EDGES, //number of edges in the shape
+                    TYPE, //type of the values used in creating the VBO
+                    NORMALIZE, //not important for now
+                    STRIDE, //also not yet
+                    OFFSET); //will explain later
+            }
 
-            const fieldOfView = 45 * Math.PI / 180;   // in radians
-            const aspect = gl.canvas.width / gl.canvas.height;
-            const zNear = 0.1;
-            const zFar = 100.0;
+            const FOV = 45 * Math.PI / 180;   //field of view in radians
+            const ASPECT_RATIO = gl.canvas.width / gl.canvas.height;
+            const ZNEAR = 0.1;
+            const ZFAR = 100.0;
+
             const projectionMatrix = mat4.create();
-
             mat4.perspective(projectionMatrix,
-                fieldOfView,
-                aspect,
-                zNear,
-                zFar);
-
-            const modelViewMatrix = mat4.create();
-
-            mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -6.0]);
-
-            // Tell WebGL how to pull out the positions from the position buffer into the vertexPosition attribute
-            const numComponents = 3;
-            const type = gl.FLOAT;
-            const normalize = false;
-            const stride = 0;
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer.position);
-            gl.vertexAttribPointer(
-                programInfo.attribLocations.vertexPosition,
-                numComponents,
-                type,
-                normalize,
-                stride,
-                0);//offset
-            gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-
-            gl.useProgram(programInfo.program);
-
+                FOV,
+                ASPECT_RATIO,
+                ZNEAR,
+                ZFAR);
             gl.uniformMatrix4fv(
-                programInfo.uniformLocations.projectionMatrix,
+                shaderProjectionLocation,
                 false,
                 projectionMatrix);
+
+            const modelViewMatrix = mat4.create();
+            mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -6.0]);
             gl.uniformMatrix4fv(
-                programInfo.uniformLocations.modelViewMatrix,
+                shaderModelViewMatrixLocation,
                 false,
                 modelViewMatrix);
-            const vertexCount = 3;
-            gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+
+            {
+                const TYPE = gl.TRIANGLES, OFFSET = 0, EDGES = 3;
+                gl.drawArrays(TYPE,
+                    OFFSET,
+                    EDGES);
+            }
         }
     }
 </script>
