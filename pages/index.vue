@@ -42,14 +42,26 @@
             detectShaderProgramError(gl, basicShaderProgram);
             gl.useProgram(basicShaderProgram);
 
-            //initialize VBO
+            //initialize VBO and IBO
+            const vertices = [
+                -0.5,  0.5,  0.0, // top-left
+                -0.5, -0.5,  0.0, // bottom-left
+                0.5, -0.5,  0.0, // bottom-right
+                0.5,  0.5,  0.0, // top-right
+            ];
+
+            const indices = [
+                0, 1, 3, // First triangle (top-left, bottom-left, top-right)
+                1, 2, 3 // Second triangle (bottom-left, bottom-right, top-right)
+            ];
+
             const VBO = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, VBO);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                -0.5, -0.5, 0.0,
-                0.5, -0.5, 0.0,
-                0.0,  0.5, 0.0
-            ]), gl.STATIC_DRAW);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+            const IBO = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, IBO);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
             //Clears the scene background, generally happens per frame
             prepareRender(gl);
@@ -76,7 +88,7 @@
 
             const FOV = 45 * Math.PI / 180;   //field of view in radians
             const ASPECT_RATIO = gl.canvas.width / gl.canvas.height;
-            const ZNEAR = 0.1;
+            const ZNEAR = 0;
             const ZFAR = 100.0;
 
             const projectionMatrix = mat4.create();
@@ -98,10 +110,11 @@
                 modelViewMatrix);
 
             {
-                const TYPE = gl.TRIANGLES, OFFSET = 0, EDGES = 3;
-                gl.drawArrays(TYPE,
-                    OFFSET,
-                    EDGES);
+                const TYPE = gl.TRIANGLES;
+                gl.drawElements(TYPE,
+                    indices.length,
+                    gl.UNSIGNED_SHORT,
+                    0);
             }
         }
     }
